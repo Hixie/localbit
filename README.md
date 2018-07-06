@@ -77,7 +77,7 @@ stored.
 _You will need: bash, sudo, curl, grep, git, mkdir, mv, ln_
 
 _This has only been tested on Linux. It may work on other Unix-like
-systems such as macOS, but this is untested.__
+systems such as macOS, but this is untested._
 
 Once you have the SD card mounted, run the command below.
 

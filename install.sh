@@ -47,4 +47,4 @@ _() {
     ln -s /root/localbit/localbit-daemon.service etc/systemd/system/multi-user.target.wants/localbit-daemon.service
     echo "Installation complete."
 }
-_ "$0" "$@"
+_ "$@"

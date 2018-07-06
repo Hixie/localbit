@@ -1,0 +1,11 @@
+[Unit]
+Description=Localbit Daemon
+Requires=localbit-startup.service
+After=localbit-startup.service
+
+[Service]
+ExecStart=/root/localbit/localbit
+KillMode=process
+Type=simple
+Restart=always
+RestartSec=2s

@@ -1,0 +1,13 @@
+[Unit]
+Description=Localbit Startup Script
+After=sys-subsystem-net-devices-wlan0.device
+
+[Service]
+ExecStart=/root/localbit/localbit-startup.sh
+KillMode=none
+Type=oneshot
+Restart=no
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

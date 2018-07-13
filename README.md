@@ -426,6 +426,23 @@ minimal risk of damage. Be wary of sending polling messages at a high
 rate continually since doing so defeats this mitigation.
 
 
+## Practical considerations
+
+On a local network, realistically, the highest signal frequency you
+can expect to send to the cloudbit with any sort of accuracy is about
+2Hz, with a latency of anything from 20ms to 100ms.
+
+The following images show some oscilloscope traces of the input going
+into the cloudbit and the output coming from the cloudbit, for a
+square wave signal that is being reflected back to the cloudbit over
+the local network, at the highest rate that localbit will operate
+(100Hz), in close-to-ideal network conditions. The first is for an
+input wave of 2Hz, the second for an input wave of 15Hz.
+
+![At 2Hz, the output signal is delayed but vaguely resembles the input.](scope_2Hz.jpeg)
+![At 15Hz, the output signal has much more noticeable gaps and irregularities.](scope_15Hz.jpeg)
+
+
 # Notes on the w20 cloudbit
 
 The remainder of this file consists of notes I made while

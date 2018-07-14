@@ -707,3 +707,141 @@ Some interesting unique aspects of the configuration:
 * There's a pair of shell scripts that set the CPU speed:
   `/usr/local/lb/bit-util/hiPowerSet.sh` and
   `/usr/local/lb/bit-util/lowPowerSet.sh`.
+
+
+# Notes on the o28 LED matrix (as driven by the w26 codebit)
+
+The w26 codebit sends serial binary data to the o28 LED matrix to show
+images and scrolling text. It uses an RS-232-like wire encoding at
+58K/8-N-1; that is, 57600 baud, 8 data bits, no parity bit, and one
+stop bit (whose width is usually slightly more than one bit's width).
+
+Specifically, data is sent in packets of eight-bit bytes. Each byte
+takes about 175.5μs. Each byte begins with 17.3μs at 0V, then eight
+bits, least significant bit first, each 17.3μs long, at 0V for 0
+(clear) and 5V for 1 (mark), and finally a terminating 5V for 19.5μs.
+When no data is being sent, the voltage of the data line is kept at
+5V.
+
+For reasons I cannot explain, pulses from the w26 codebit are
+sometimes arbitrarily longer than they should be according to the
+description above. The o28 LED matrix appears to either ignore bogus
+data or somehow correct for it; either way, I don't see glitches on
+the LED matrix when glitches happen in the output of the codebit.
+
+## Data format
+
+Each packet starts with an 0x1C byte, a message type byte, a
+presentation configuration byte, and a length byte. This is followed
+by message-specific byte data whose length equals the length byte.
+Finally, the message ends with a trailing 0x26 byte. Messages are
+therefore a maximum of 260 bytes long.
+
+```
+ 00 01 02 03  04...    04+LL
++--+--+--+--+---------+-----+
+|1C|TT|PP|LL| data... | 26  |
++--+--+--+--+---------+-----+
+    |  |  |
+    |  |  `----------- Length byte
+    |  `-------------- Presentation, see section below
+    `----------------- Message type
+```
+
+There are two message types that seem to be used by the w26 codebit
+and corresponding software: 0x00 for images, and 0x01 for scrolling
+text.
+
+## Presentation
+
+The third byte of every message represents the LED matrix display
+presentation configuration, and the intended audience for the message.
+
+The high 4 bits represent the number of displays in the configuration.
+The o28 LED matrix uses this to know how many channels to allow the
+user to cycle through when they press the channel button. Values from
+1 to 4 are valid. I haven't yet tested what happens with invalid
+values.
+
+The low 4 bits represent which channel the message is intended for.
+For images in a four-display configuration, four packets are sent,
+each containing a different 8x8 image and assigned to a separate
+channel. The four images for display channels 1 through 4 are
+transmitted with the presentation configuration bytes set to 0x41,
+0x42, 0x44, and 0x48 respectively. For text, all the channels are
+enabled simultaneously, so in a horizontal four-display configuration,
+the layout configuration byte is sent as 0x4F. (In a vertical
+configuration, only one display is enabled, using 0x1F.)
+
+The o28 LED matrix ignores messages sent for channels beyond the
+number of channels declared in the high four bits.
+
+## Image messages (0x00)
+
+Each image is a sent as a 12.1ms burst of data, consisting of 4
+leading preamble bytes, 64 pixel bytes, and 1 trailing postamble byte.
+
+When the image is configured to target a single LED matrix, the
+preamble is four bytes, 0x1C001140 (in network byte order), and the
+postamble is one byte, 0x26.
+
+The image data is 8 bit RGB. On the wire, the first two bits of each
+byte represent the blue signal, the next three bytes represent the
+green signal, and final three bytes represent the red signal. This is
+equivalent to the low two bits being blue, the next three bits being
+green, and the high three bits being red.
+
+```
+ 00 01 02 03  04...67      68
++--+--+--+--+-------------+--+
+|1C|00|PP|LL| RGB data... |26|
++--+--+--+--+-------------+--+
+    |  |  |
+    |  |  `----------- Length byte, always 0x40 for a single image (64 pixels)
+    |  `-------------- Presentation, see section above
+    `----------------- Message type, 0x00 for images
+```
+
+## Scrolling text messages (0x01)
+
+Text is actually sent as ASCII text, not as a series of images, though
+each animation frame is sent as an individual message.
+
+The data section of each message (following the preamble described
+above) consists of a colour byte, a big-endian 16 bit value
+representing how much the offset to apply to the text (in a multiple
+display configuration, the offset is affected by the display's
+selected channel, so that adjacent displays appear as one long display
+scrolling the same text), and the text.
+
+The full packet is sent as follows:
+
+```
+ 00 01 02 03 04  05 06 07...           04+LL
++--+--+--+--+---+-----+---------------+-----+
+|1C|01|PP|LL|RGB|SS SS| ASCII data... | 26  |
++--+--+--+--+---+-----+---------------+-----+
+    |  |  |   |    |
+    |  |  |   |    `-- Scroll offset, 16 bit word, big-endian
+    |  |  |   `------- Color byte, 8 bit RGB: RRRGGGBB
+    |  |  `----------- Length byte, 3 plus the length of the string
+    |  `-------------- Presentation, see section above
+    `----------------- Message type, 0x01 for scrolling text
+```
+
+The font is monospace; characters are 6 pixels wide including a 1
+pixel wide margin between characters. The scroll offset appears to be
+in pixels; a scroll offset of zero indicates that the text should be
+flush left with the first display, and positive numbers move the text
+further to the left. Typically a message would be scrolled from offset
+zero to offset LL*5 (the width of the message).
+
+The w26 codebit's software always prefaces scrolling text messages
+with two 0x20 bytes (ASCII space characters). The two space characters
+are probably intended to provide a gap between subsequent scrolls of
+the message, and to start the message a little off the edge of the
+first display.
+
+Sending bytes above 0x7F (i.e. non-ASCII characters) results in
+garbage on the display at that character position; I speculate that
+this is reading data from outside the font array in the LED matrix.
